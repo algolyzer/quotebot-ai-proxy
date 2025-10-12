@@ -1,13 +1,31 @@
+# FastAPI and ASGI server
 fastapi
 uvicorn[standard]
 pydantic
 pydantic-settings
+pydantic[email]
+
+# HTTP client with connection pooling
 httpx
+
+# Database
+databases[postgresql]
+asyncpg
+sqlalchemy
+psycopg2-binary
+
+# Redis
+redis[hiredis]
+
+# Environment variables
 python-dotenv
-python-multipart
-redis
-slowapi
-python-jose[cryptography]
-passlib[bcrypt]
-cryptography
+
+# JSON and data handling
+orjson
+
+# Monitoring (optional)
+prometheus-client
+sentry-sdk[fastapi]
+
+# Deployment
 gunicorn

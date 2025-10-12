@@ -1,6 +1,6 @@
 """
-API Routes
-All HTTP endpoints for the Quotebot AI Proxy
+Conversation API Endpoints
+Clean, RESTful endpoint design
 """
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -9,7 +9,7 @@ from typing import List
 from app.models.schemas import (
     StartConversationRequest, StartConversationResponse,
     ChatMessageRequest, ChatMessageResponse,
-    MessageHistory, ErrorResponse
+    MessageHistory
 )
 from app.services.conversation_service import conversation_service
 from app.services.database import redis_client
@@ -21,34 +21,32 @@ logger = setup_logger(__name__)
 router = APIRouter()
 
 
-# ============================================================================
-# ENDPOINT 1: START CONVERSATION
-# ============================================================================
-
 @router.post(
-    "/start_conversation",
+    "/start",
     response_model=StartConversationResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Start a new conversation",
-    description="Initialize a new conversation with context from tablazat.hu"
+    description="Initialize a conversation with context from tablazat.hu"
 )
 async def start_conversation(
         request: Request,
         context: StartConversationRequest
 ):
     """
-    Start a new conversation (The Handshake)
+    **Start a new conversation**
 
-    This endpoint receives initial context from tablazat.hu and creates
-    a new conversation in Dify.
+    This is the "handshake" endpoint that receives initial context
+    from tablazat.hu and creates a new Dify conversation.
 
-    **Input:** Initial context with session_id, user_data, traffic_data
-    **Output:** conversation_id to track this session
+    **Flow:**
+    1. Receives session info, user data, and traffic source
+    2. Creates conversation in Dify
+    3. Returns conversation_id to track the session
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
     logger.info(
-        f"[{request_id}] Starting conversation for session {context.session_id}"
+        f"[{request_id}] 🆕 Starting conversation for session {context.session_id}"
     )
 
     # Rate limiting
@@ -59,7 +57,7 @@ async def start_conversation(
 
         if not rate_limit_ok:
             logger.warning(
-                f"[{request_id}] Rate limit exceeded for session {context.session_id}"
+                f"[{request_id}] 🚫 Rate limit exceeded for {context.session_id}"
             )
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -70,7 +68,7 @@ async def start_conversation(
         result = await conversation_service.start_conversation(context)
 
         logger.info(
-            f"[{request_id}] Conversation started: {result['conversation_id']}"
+            f"[{request_id}] ✅ Conversation started: {result['conversation_id']}"
         )
 
         return StartConversationResponse(
@@ -80,7 +78,7 @@ async def start_conversation(
 
     except Exception as e:
         logger.error(
-            f"[{request_id}] Error starting conversation: {str(e)}",
+            f"[{request_id}] ❌ Error starting conversation: {str(e)}",
             exc_info=True
         )
         raise HTTPException(
@@ -89,34 +87,33 @@ async def start_conversation(
         )
 
 
-# ============================================================================
-# ENDPOINT 2: SEND MESSAGE (CHAT)
-# ============================================================================
-
 @router.post(
-    "/chat",
+    "/message",
     response_model=ChatMessageResponse,
-    summary="Send a chat message",
-    description="Send a message in an existing conversation"
+    summary="Send a message",
+    description="Send a message in an active conversation"
 )
 async def send_message(
         request: Request,
         chat_msg: ChatMessageRequest
 ):
     """
-    Send a message in an ongoing conversation
+    **Send a message in an active conversation**
 
-    This endpoint forwards the user's message to Dify and returns
-    the AI's response.
+    This endpoint forwards messages to Dify and returns AI responses.
+    It also automatically detects when a conversation is complete.
 
-    **Input:** conversation_id + user message
-    **Output:** AI assistant's answer + completion status
+    **Flow:**
+    1. Receives user message with conversation_id
+    2. Forwards to Dify AI
+    3. Returns AI response
+    4. Checks if conversation is complete
+    5. If complete, triggers callback to tablazat.hu
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
     logger.debug(
-        f"[{request_id}] Received message for conversation "
-        f"{chat_msg.conversation_id}"
+        f"[{request_id}] 💬 Message for {chat_msg.conversation_id}"
     )
 
     # Validate message length
@@ -132,15 +129,19 @@ async def send_message(
             message=chat_msg.message
         )
 
+        if result.get("conversation_complete"):
+            logger.info(
+                f"[{request_id}] 🎉 Conversation {chat_msg.conversation_id} complete!"
+            )
+
         return ChatMessageResponse(
             answer=result["answer"],
             conversation_complete=result["conversation_complete"]
         )
 
     except ValueError as e:
-        # Conversation not found
         logger.warning(
-            f"[{request_id}] Conversation not found: {chat_msg.conversation_id}"
+            f"[{request_id}] ⚠️  Conversation not found: {chat_msg.conversation_id}"
         )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -149,7 +150,7 @@ async def send_message(
 
     except Exception as e:
         logger.error(
-            f"[{request_id}] Error sending message: {str(e)}",
+            f"[{request_id}] ❌ Error sending message: {str(e)}",
             exc_info=True
         )
         raise HTTPException(
@@ -158,39 +159,34 @@ async def send_message(
         )
 
 
-# ============================================================================
-# ENDPOINT 3: GET CONVERSATION HISTORY
-# ============================================================================
-
 @router.get(
-    "/history/{conversation_id}",
+    "/{conversation_id}/history",
     response_model=List[MessageHistory],
     summary="Get conversation history",
-    description="Retrieve message history for a conversation (for page refresh)"
+    description="Retrieve all messages for a conversation (used on page refresh)"
 )
 async def get_history(
         request: Request,
         conversation_id: str
 ):
     """
-    Get conversation history
+    **Get conversation history**
 
-    This endpoint returns all messages in a conversation, used when
-    the user refreshes the page.
+    Returns all messages in a conversation. This is used when
+    a user refreshes the page to restore the conversation state.
 
-    **Input:** conversation_id (in URL)
-    **Output:** Array of message objects with role and content
+    **Response:**
+    Array of messages with role (user/assistant) and content
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
     logger.debug(
-        f"[{request_id}] Fetching history for conversation {conversation_id}"
+        f"[{request_id}] 📜 Fetching history for {conversation_id}"
     )
 
     try:
         messages = await conversation_service.get_history(conversation_id)
 
-        # Convert to response format
         history = [
             MessageHistory(
                 role=msg["role"],
@@ -200,11 +196,15 @@ async def get_history(
             for msg in messages
         ]
 
+        logger.debug(
+            f"[{request_id}] ✅ Retrieved {len(history)} messages"
+        )
+
         return history
 
     except Exception as e:
         logger.error(
-            f"[{request_id}] Error fetching history: {str(e)}",
+            f"[{request_id}] ❌ Error fetching history: {str(e)}",
             exc_info=True
         )
         raise HTTPException(
@@ -213,18 +213,21 @@ async def get_history(
         )
 
 
-# ============================================================================
-# ADMIN/DEBUG ENDPOINTS (Optional)
-# ============================================================================
-
 @router.get(
-    "/conversation/{conversation_id}/status",
-    summary="Get conversation status",
-    description="Get detailed status of a conversation (for debugging)"
+    "/{conversation_id}",
+    summary="Get conversation details",
+    description="Get detailed status of a conversation (debug endpoint)"
 )
-async def get_conversation_status(conversation_id: str):
-    """Get conversation status (admin/debug endpoint)"""
+async def get_conversation_status(
+        request: Request,
+        conversation_id: str
+):
+    """
+    **Get conversation status** (Debug endpoint)
 
+    Returns detailed information about a conversation.
+    Only available in development mode.
+    """
     # Only enable in non-production
     if settings.ENVIRONMENT == "production":
         raise HTTPException(
@@ -233,7 +236,6 @@ async def get_conversation_status(conversation_id: str):
         )
 
     try:
-        # Try Redis first
         conversation = await redis_client.get_conversation(conversation_id)
 
         if not conversation:

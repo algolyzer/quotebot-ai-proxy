@@ -5,7 +5,7 @@ High-performance async database connections with pooling
 
 import redis.asyncio as aioredis
 from databases import Database
-from sqlalchemy import create_engine, MetaData, Table, Column, String, DateTime, Integer, JSON, Text
+from sqlalchemy import create_engine, MetaData, Table, Column, String, DateTime, Integer, JSON, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 import json
 from typing import Optional, Dict, Any, List
@@ -136,7 +136,7 @@ metadata = MetaData()
 conversations_table = Table(
     "conversations",
     metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
+    Column("id", UUID(as_uuid=True), primary_key=True),
     Column("conversation_id", String(100), unique=True, nullable=False, index=True),
     Column("session_id", String(100), nullable=False, index=True),
     Column("dify_conversation_id", String(100)),
@@ -144,8 +144,8 @@ conversations_table = Table(
     Column("initial_context", JSON, nullable=False),
     Column("final_output", JSON),
     Column("message_count", Integer, default=0),
-    Column("created_at", DateTime, nullable=False, default=datetime.utcnow),
-    Column("updated_at", DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow),
+    Column("created_at", DateTime, nullable=False),
+    Column("updated_at", DateTime, nullable=False),
     Column("completed_at", DateTime),
 )
 
@@ -153,14 +153,14 @@ conversations_table = Table(
 messages_table = Table(
     "messages",
     metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
+    Column("id", UUID(as_uuid=True), primary_key=True),
     Column("message_id", String(100), unique=True, nullable=False),
     Column("conversation_id", String(100), nullable=False, index=True),
     Column("role", String(20), nullable=False),
     Column("content", Text, nullable=False),
     Column("dify_message_id", String(100)),
     Column("metadata", JSON),
-    Column("created_at", DateTime, nullable=False, default=datetime.utcnow, index=True),
+    Column("created_at", DateTime, nullable=False, index=True),
 )
 
 
@@ -177,6 +177,16 @@ class DatabaseService:
     @staticmethod
     async def save_conversation(data: Dict[str, Any]):
         """Save conversation to database"""
+        # Generate UUID if not present
+        if 'id' not in data:
+            data['id'] = uuid.uuid4()
+
+        # Ensure datetime objects
+        if 'created_at' not in data:
+            data['created_at'] = datetime.utcnow()
+        if 'updated_at' not in data:
+            data['updated_at'] = datetime.utcnow()
+
         query = conversations_table.insert().values(**data)
         await database.execute(query)
 
@@ -206,6 +216,14 @@ class DatabaseService:
     @staticmethod
     async def save_message(data: Dict[str, Any]):
         """Save message to database"""
+        # Generate UUID if not present
+        if 'id' not in data:
+            data['id'] = uuid.uuid4()
+
+        # Ensure datetime object
+        if 'created_at' not in data:
+            data['created_at'] = datetime.utcnow()
+
         query = messages_table.insert().values(**data)
         await database.execute(query)
 

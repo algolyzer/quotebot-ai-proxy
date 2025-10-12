@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 @router.post(
-    "/start",
+    "/start_conversation",
     response_model=StartConversationResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Start a new conversation",
@@ -88,7 +88,7 @@ async def start_conversation(
 
 
 @router.post(
-    "/message",
+    "/chat",
     response_model=ChatMessageResponse,
     summary="Send a message",
     description="Send a message in an active conversation"
@@ -160,7 +160,7 @@ async def send_message(
 
 
 @router.get(
-    "/{conversation_id}/history",
+    "/history/{conversation_id}",
     response_model=List[MessageHistory],
     summary="Get conversation history",
     description="Retrieve all messages for a conversation (used on page refresh)"

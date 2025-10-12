@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+httpx
+python-dotenv
+python-multipart
+redis
+slowapi
+python-jose[cryptography]
+passlib[bcrypt]
+cryptography
+gunicorn

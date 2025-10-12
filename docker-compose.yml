@@ -1,33 +1,81 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: quotebot-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: quotebot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quotebot-network
+
+  # Redis Cache
   redis:
     image: redis:7-alpine
+    container_name: quotebot-redis
+    command: redis-server --appendonly yes
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
-      timeout: 3s
-      retries: 3
+      timeout: 5s
+      retries: 5
+    networks:
+      - quotebot-network
 
-  api:
-    build: .
+  # Redis Commander (Optional GUI for Redis)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: quotebot-redis-gui
+    environment:
+      - REDIS_HOSTS=local:redis:6379
     ports:
-      - "8000:8000"
-    env_file:
-      - .env
+      - "8081:8081"
     depends_on:
       - redis
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    networks:
+      - quotebot-network
+    profiles:
+      - tools
+
+  # pgAdmin (Optional GUI for PostgreSQL)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: quotebot-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@quotebot.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - quotebot-network
+    profiles:
+      - tools
 
 volumes:
+  postgres_data:
+    driver: local
   redis_data:
+    driver: local
+
+networks:
+  quotebot-network:
+    driver: bridge

@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: quotebot-postgres
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-quotebot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quotebot_pass_2024}
+      POSTGRES_DB: ${POSTGRES_DB:-quotebot}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quotebot}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quotebot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: quotebot-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:-redis_pass_2024}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_pass_2024}", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quotebot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # FastAPI Application
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: quotebot-app
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      # Override for Docker internal network
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-quotebot}:${POSTGRES_PASSWORD:-quotebot_pass_2024}@postgres:5432/${POSTGRES_DB:-quotebot}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_pass_2024}@redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - quotebot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  quotebot-network:
+    driver: bridge

@@ -1,16 +1,13 @@
-version: '3.8'
-
 services:
-  # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
     container_name: quotebot-postgres
     restart: unless-stopped
     env_file:
-      - ../.env
+      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-quotebot}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quotebot_pass_2024}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quotebot123}
       POSTGRES_DB: ${POSTGRES_DB:-quotebot}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
@@ -18,19 +15,15 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quotebot}" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-quotebot} -h 127.0.0.1" ]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - quotebot-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      quotebot-network:
+        aliases: [ postgres ]
+    hostname: postgres
 
-  # Redis Cache
   redis:
     image: redis:7-alpine
     container_name: quotebot-redis
@@ -38,7 +31,7 @@ services:
     command: >
       redis-server
       --appendonly yes
-      --requirepass ${REDIS_PASSWORD:-redis_pass_2024}
+      --requirepass ${REDIS_PASSWORD:-redis123}
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
     ports:
@@ -46,31 +39,47 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_pass_2024}", "ping" ]
+      test: [ "CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis123}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - quotebot-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+      quotebot-network:
+        aliases: [ redis ]
+    hostname: redis
 
-  # FastAPI Application
   app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    image: quotebot/app:local
     container_name: quotebot-app
     restart: unless-stopped
     env_file:
-      - ../.env
+      - ./.env
     environment:
-      # Override for Docker internal network
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-quotebot}:${POSTGRES_PASSWORD:-quotebot_pass_2024}@postgres:5432/${POSTGRES_DB:-quotebot}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-redis_pass_2024}@redis:6379/0
+      # Construct from POSTGRES_*/REDIS_* so there's only ONE source of truth.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-quotebot}:${POSTGRES_PASSWORD:-quotebot123}@postgres:5432/${POSTGRES_DB:-quotebot}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
+      # Optional: pass through other app settings from .env as needed
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-false}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      DIFY_API_KEY: ${DIFY_API_KEY:-app-your-dify-api-key-here}
+      DIFY_API_URL: ${DIFY_API_URL:-https://quotebot.tablazat.hu/v1}
+      DIFY_TIMEOUT: ${DIFY_TIMEOUT:-30}
+      TABLAZAT_CALLBACK_URL: ${TABLAZAT_CALLBACK_URL:-https://tablazat.hu/api/quotebot/result}
+      TABLAZAT_CALLBACK_TIMEOUT: ${TABLAZAT_CALLBACK_TIMEOUT:-10}
+      TABLAZAT_CALLBACK_MAX_RETRIES: ${TABLAZAT_CALLBACK_MAX_RETRIES:-3}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["https://tablazat.hu","http://localhost:3000","http://localhost:8080"]}
+      CONVERSATION_TTL: ${CONVERSATION_TTL:-86400}
+      MAX_CONVERSATION_MESSAGES: ${MAX_CONVERSATION_MESSAGES:-100}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      COMPLETION_KEYWORDS: ${COMPLETION_KEYWORDS:-["thank you for providing all the information","we'll send you a quote","our team will contact you","conversation complete"]}
+      REQUIRED_FIELDS: ${REQUIRED_FIELDS:-["customer_name","customer_email","product_type"]}
+      SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
       - "8000:8000"
     depends_on:
@@ -80,11 +89,7 @@ services:
         condition: service_healthy
     networks:
       - quotebot-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    entrypoint: [ "uvicorn", "main:app", "--host","0.0.0.0","--port","8000","--workers","1" ]
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
@@ -94,9 +99,7 @@ services:
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
 
 networks:
   quotebot-network:

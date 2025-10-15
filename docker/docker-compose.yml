@@ -81,7 +81,7 @@ services:
       REQUIRED_FIELDS: ${REQUIRED_FIELDS:-["customer_name","customer_email","product_type"]}
       SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
-      - "8000:8000"
+      - "${APP_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy

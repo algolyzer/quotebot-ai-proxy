@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: quotebot-nginx
+    restart: always
+    env_file:
+      - .env
+    environment:
+      DOMAIN_NAME: ${DOMAIN_NAME:-quotebot-api.tablazat.hu}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    depends_on:
+      - app
+    networks:
+      - quotebot-network
+    command: /bin/bash -c "envsubst '$$DOMAIN_NAME' < /etc/nginx/conf.d/template.conf > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+
+  certbot:
+    image: certbot/certbot
+    container_name: quotebot-certbot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: /bin/sh
+    networks:
+      - quotebot-network
+
+networks:
+  quotebot-network:
+    external: true

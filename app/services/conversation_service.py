@@ -56,12 +56,14 @@ class ConversationService:
             "landing_page": context.traffic_data.landing_page,
         }
 
+        first_message = "\n".join([f"{key}: {value}" for key, value in dify_inputs.items()])
+
         # Create conversation in Dify
         try:
             dify_response = await dify_service.create_conversation(
                 user_id=context.session_id,
                 initial_inputs=dify_inputs,
-                first_message="Hello, I'm looking for a quote"
+                first_message=first_message
             )
         except Exception as e:
             logger.error(f"Failed to create Dify conversation: {e}")

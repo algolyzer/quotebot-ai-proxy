@@ -1,7 +1,8 @@
+name: quotebot
+
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: quotebot-postgres
     restart: unless-stopped
     env_file:
       - .env
@@ -10,8 +11,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-quotebot123}
       POSTGRES_DB: ${POSTGRES_DB:-quotebot}
       PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "${POSTGRES_PORT:?set POSTGRES_PORT in .env}:5432"
+    # No host port published -> won't collide with other Postgres instances
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,13 +20,10 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      quotebot-network:
-        aliases: [ postgres ]
-    hostname: postgres
+      - quotebot-network
 
   redis:
     image: redis:7-alpine
-    container_name: quotebot-redis
     restart: unless-stopped
     command: >
       redis-server
@@ -34,8 +31,7 @@ services:
       --requirepass ${REDIS_PASSWORD:-redis123}
       --maxmemory 512mb
       --maxmemory-policy allkeys-lru
-    ports:
-      - "${REDIS_PORT:?set REDIS_PORT in .env}:6379"
+    # No host port published -> won't collide with other Redis instances
     volumes:
       - redis_data:/data
     healthcheck:
@@ -44,25 +40,22 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      quotebot-network:
-        aliases: [ redis ]
-    hostname: redis
+      - quotebot-network
 
   app:
     build:
       context: ..
       dockerfile: docker/Dockerfile
     image: quotebot/app:local
-    container_name: quotebot-app
     restart: unless-stopped
     env_file:
-      - ./.env
+      - .env
     environment:
-      # Construct from POSTGRES_*/REDIS_* so there's only ONE source of truth.
+      # App talks to the internal services by name
       DATABASE_URL: postgresql://${POSTGRES_USER:-quotebot}:${POSTGRES_PASSWORD:-quotebot123}@postgres:5432/${POSTGRES_DB:-quotebot}
       REDIS_URL: redis://:${REDIS_PASSWORD:-redis123}@redis:6379/0
 
-      # Optional: pass through other app settings from .env as needed
+      # Your existing settings
       ENVIRONMENT: ${ENVIRONMENT:-development}
       DEBUG: ${DEBUG:-false}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -82,7 +75,7 @@ services:
       REQUIRED_FIELDS: ${REQUIRED_FIELDS:-["customer_name","customer_email","product_type"]}
       SENTRY_DSN: ${SENTRY_DSN:-}
     ports:
-      - "${APP_PORT:?set APP_PORT in .env}:8000"
+      - "${APP_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,8 +1,9 @@
 """
 Pydantic Models for Request/Response validation
+Updated to match new tablazat.hu schema requirements
 """
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional, Dict, List, Any
 from datetime import datetime
 from enum import Enum
@@ -25,24 +26,97 @@ class MessageRole(str, Enum):
 
 
 # ============================================================================
-# INITIAL CONTEXT (FROM TABLAZAT.HU)
+# INITIAL CONTEXT (FROM TABLAZAT.HU) - UPDATED SCHEMA
 # ============================================================================
 
 class UserData(BaseModel):
-    is_identified_user: bool
-    name: Optional[str] = None
-    email: Optional[EmailStr] = None
+    """User information from tablazat.hu"""
+    is_identified_user: bool = Field(
+        ...,
+        description="Whether the user is identified/logged in"
+    )
+    name: Optional[str] = Field(
+        None,
+        description="User's name (required when is_identified_user=true)"
+    )
+    user_id: Optional[int] = Field(
+        None,
+        description="User's ID in tablazat.hu system (required when is_identified_user=true)"
+    )
+    email: Optional[EmailStr] = Field(
+        None,
+        description="User's email address"
+    )
+
+    @field_validator('name', 'user_id')
+    @classmethod
+    def validate_identified_user_fields(cls, v, info):
+        """Validate that identified users have required fields"""
+        # This will be called for each field, but we need to check after all fields are set
+        # So we'll do a final check in model_post_init
+        return v
+
+    def model_post_init(self, __context):
+        """Validate conditional requirements after model initialization"""
+        if self.is_identified_user:
+            if not self.name:
+                raise ValueError("user_data.name is required when is_identified_user=true")
+            if self.user_id is None:
+                raise ValueError("user_data.user_id is required when is_identified_user=true")
 
 
 class TrafficData(BaseModel):
-    traffic_source: str
-    landing_page: str
+    """Traffic and source information"""
+    traffic_source: Optional[str] = Field(
+        None,
+        description="Marketing campaign or traffic source identifier"
+    )
+    landing_page: str = Field(
+        ...,
+        description="Initial landing page URL"
+    )
+    conversation_start_page: str = Field(
+        ...,
+        description="Page where the conversation was initiated"
+    )
+
+
+class InteractionData(BaseModel):
+    """User interaction metadata"""
+    device_type: str = Field(
+        ...,
+        description="Device type: desktop, mobile, tablet",
+        pattern="^(desktop|mobile|tablet)$"
+    )
+    initiation_method: str = Field(
+        ...,
+        description="How conversation started: user_clicked, auto_popup, chat_icon, etc."
+    )
+
+
+class ComplianceData(BaseModel):
+    """Compliance and privacy information"""
+    privacy_policy_accepted: bool = Field(
+        ...,
+        description="Whether user has accepted the privacy policy"
+    )
 
 
 class InitialContext(BaseModel):
-    session_id: str = Field(..., description="Unique session ID from tablazat.hu")
+    """Complete initial context from tablazat.hu"""
+    current_date: str = Field(
+        ...,
+        description="Current date in YYYY-MM-DD format",
+        pattern=r"^\d{4}-\d{2}-\d{2}$"
+    )
+    session_id: str = Field(
+        ...,
+        description="Unique session ID from tablazat.hu"
+    )
     user_data: UserData
     traffic_data: TrafficData
+    interaction_data: InteractionData
+    compliance_data: ComplianceData
 
 
 # ============================================================================
@@ -63,8 +137,16 @@ class StartConversationResponse(BaseModel):
 
 class ChatMessageRequest(BaseModel):
     """Request to send a chat message"""
-    conversation_id: str = Field(..., description="Conversation ID from start_conversation")
-    message: str = Field(..., min_length=1, max_length=4000, description="User's message")
+    conversation_id: str = Field(
+        ...,
+        description="Conversation ID from start_conversation"
+    )
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=4000,
+        description="User's message"
+    )
 
 
 class ChatMessageResponse(BaseModel):
@@ -112,11 +194,15 @@ class ProductRequest(BaseModel):
 
 
 class FinalOutputMetadata(BaseModel):
-    traffic_source: str
+    traffic_source: Optional[str] = None
     landing_page: str
+    conversation_start_page: str
+    device_type: str
+    initiation_method: str
     flow_path: str = "STANDARD"
     conversation_duration_seconds: Optional[int] = None
     total_messages: Optional[int] = None
+    privacy_policy_accepted: bool = True
 
 
 class FinalOutput(BaseModel):

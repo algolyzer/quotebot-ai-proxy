@@ -1,6 +1,7 @@
 """
 Callback Service
 Sends final structured data to tablazat.hu with retry logic
+Updated to include new metadata fields
 """
 
 import httpx
@@ -63,7 +64,7 @@ class CallbackService:
         # Build product request
         product_request = self._build_product_request(structured_data)
 
-        # Build metadata
+        # Build metadata with new fields
         created_at = conversation_data.get("created_at")
         if isinstance(created_at, str):
             created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
@@ -72,12 +73,21 @@ class CallbackService:
         if created_at:
             duration_seconds = int((datetime.utcnow() - created_at).total_seconds())
 
+        # Extract metadata from initial context
+        traffic_data = initial_context.get("traffic_data", {})
+        interaction_data = initial_context.get("interaction_data", {})
+        compliance_data = initial_context.get("compliance_data", {})
+
         metadata = FinalOutputMetadata(
-            traffic_source=initial_context.get("traffic_data", {}).get("traffic_source", "unknown"),
-            landing_page=initial_context.get("traffic_data", {}).get("landing_page", "/"),
+            traffic_source=traffic_data.get("traffic_source"),
+            landing_page=traffic_data.get("landing_page", "/"),
+            conversation_start_page=traffic_data.get("conversation_start_page", "/"),
+            device_type=interaction_data.get("device_type", "unknown"),
+            initiation_method=interaction_data.get("initiation_method", "unknown"),
             flow_path=structured_data.get("flow_path", "STANDARD"),
             conversation_duration_seconds=duration_seconds,
-            total_messages=conversation_data.get("message_count", 0)
+            total_messages=conversation_data.get("message_count", 0),
+            privacy_policy_accepted=compliance_data.get("privacy_policy_accepted", True)
         )
 
         # Create final output

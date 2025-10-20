@@ -15,6 +15,7 @@ from app.models.schemas import (
 from app.services.database import redis_client, db_service
 from app.services.dify_service import dify_service
 from app.utils.logger import setup_logger
+from app.utils.response_parser import parse_buttons_from_answer
 
 logger = setup_logger(__name__)
 
@@ -213,11 +214,15 @@ class ConversationService:
 
         answer = dify_response.get("answer", "")
 
-        # Save AI response
+        # Parse buttons from answer
+
+        cleaned_answer, buttons = parse_buttons_from_answer(answer)
+
+        # Save the original answer (with buttons) to database for history
         await self._save_message(
             conversation_id=conversation_id,
             role=MessageRole.ASSISTANT,
-            content=answer,
+            content=answer,  # Store original with buttons
             dify_message_id=dify_response.get("message_id")
         )
 
@@ -239,9 +244,11 @@ class ConversationService:
             variables
         )
 
+        # Build result with parsed buttons
         result = {
-            "answer": answer,
-            "conversation_complete": is_complete
+            "answer": cleaned_answer,  # Return cleaned answer without button tags
+            "conversation_complete": is_complete,
+            "buttons": buttons  # Return parsed buttons array
         }
 
         # If complete, trigger finalization

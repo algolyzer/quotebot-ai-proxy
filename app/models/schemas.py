@@ -153,6 +153,10 @@ class ChatMessageResponse(BaseModel):
     """Response from chat endpoint"""
     answer: str
     conversation_complete: bool = False
+    buttons: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="Parsed buttons from AI response"
+    )
     metadata: Optional[Dict[str, Any]] = None
 
 

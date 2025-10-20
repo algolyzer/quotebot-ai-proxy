@@ -136,6 +136,7 @@ async def send_message(
 
         return ChatMessageResponse(
             answer=result["answer"],
+            buttons=result["buttons"],
             conversation_complete=result["conversation_complete"]
         )
 

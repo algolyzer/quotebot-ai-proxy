@@ -1,6 +1,7 @@
 """
 Conversation Service
 Manages conversation lifecycle and coordinates between Redis, PostgreSQL, and Dify
+Updated to handle new schema fields
 """
 
 import uuid
@@ -29,7 +30,7 @@ class ConversationService:
         Start a new conversation
 
         1. Generate conversation ID
-        2. Create conversation in Dify
+        2. Create conversation in Dify with full context
         3. Store in Redis (fast access)
         4. Store in PostgreSQL (persistence)
 
@@ -47,16 +48,47 @@ class ConversationService:
             f"for session {context.session_id}"
         )
 
-        # Prepare inputs for Dify
+        # Prepare comprehensive inputs for Dify
         dify_inputs = {
+            # Date context
+            "current_date": context.current_date,
+
+            # User information
+            "is_identified_user": context.user_data.is_identified_user,
             "user_name": context.user_data.name or "Guest",
+            "user_id": context.user_data.user_id if context.user_data.user_id is not None else "",
             "user_email": context.user_data.email or "",
-            "is_identified": context.user_data.is_identified_user,
-            "traffic_source": context.traffic_data.traffic_source,
+
+            # Traffic and source
+            "traffic_source": context.traffic_data.traffic_source or "direct",
             "landing_page": context.traffic_data.landing_page,
+            "conversation_start_page": context.traffic_data.conversation_start_page,
+
+            # Interaction metadata
+            "device_type": context.interaction_data.device_type,
+            "initiation_method": context.interaction_data.initiation_method,
+
+            # Compliance
+            "privacy_accepted": context.compliance_data.privacy_policy_accepted,
         }
 
-        first_message = "\n".join([f"{key}: {value}" for key, value in dify_inputs.items()])
+        # Create a natural first message that includes context
+        first_message_parts = [
+            f"Date: {context.current_date}",
+        ]
+
+        if context.user_data.is_identified_user and context.user_data.name:
+            first_message_parts.append(f"User: {context.user_data.name}")
+
+        first_message_parts.extend([
+            f"Device: {context.interaction_data.device_type}",
+            f"Started from: {context.traffic_data.conversation_start_page}",
+        ])
+
+        if context.traffic_data.traffic_source:
+            first_message_parts.append(f"Source: {context.traffic_data.traffic_source}")
+
+        first_message = "\n".join(first_message_parts)
 
         # Create conversation in Dify
         try:

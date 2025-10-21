@@ -3,7 +3,7 @@ Conversation API Endpoints
 Clean, RESTful endpoint design
 """
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status, Depends
 from typing import List
 
 from app.models.schemas import (
@@ -15,6 +15,7 @@ from app.services.conversation_service import conversation_service
 from app.services.database import redis_client
 from app.config import settings
 from app.utils.logger import setup_logger
+from app.api.dependencies import verify_api_key
 
 logger = setup_logger(__name__)
 
@@ -30,7 +31,9 @@ router = APIRouter()
 )
 async def start_conversation(
         request: Request,
-        context: StartConversationRequest
+        context: StartConversationRequest,
+        api_key: str = Depends(verify_api_key)
+
 ):
     """
     **Start a new conversation**
@@ -95,7 +98,9 @@ async def start_conversation(
 )
 async def send_message(
         request: Request,
-        chat_msg: ChatMessageRequest
+        chat_msg: ChatMessageRequest,
+        api_key: str = Depends(verify_api_key)
+
 ):
     """
     **Send a message in an active conversation**
@@ -168,7 +173,9 @@ async def send_message(
 )
 async def get_history(
         request: Request,
-        conversation_id: str
+        conversation_id: str,
+        api_key: str = Depends(verify_api_key)
+
 ):
     """
     **Get conversation history**
@@ -221,7 +228,9 @@ async def get_history(
 )
 async def get_conversation_status(
         request: Request,
-        conversation_id: str
+        conversation_id: str,
+        api_key: str = Depends(verify_api_key)
+
 ):
     """
     **Get conversation status** (Debug endpoint)

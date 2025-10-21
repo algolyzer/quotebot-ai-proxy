@@ -1,6 +1,7 @@
 """
 Response Parser Utilities
 Extracts structured elements (buttons, links, etc.) from AI responses
+Fixed to handle escaped slashes and various button formats
 """
 
 import re
@@ -16,6 +17,7 @@ def parse_buttons_from_answer(answer: str) -> Tuple[str, List[Dict[str, str]]]:
     - <button>button1</button>
     - <button>[button1]</button>
     - Multiple button tags
+    - Handles escaped slashes (</button>)
 
     Args:
         answer: The AI's response text
@@ -38,11 +40,15 @@ def parse_buttons_from_answer(answer: str) -> Tuple[str, List[Dict[str, str]]]:
     buttons = []
     cleaned_answer = answer
 
-    # Pattern to match <button>...</button> tags
-    button_pattern = r'<button>(.*?)</button>'
+    # First, handle escaped slashes
+    answer = answer.replace(r'<\/button>', '</button>')
+
+    # Pattern to match <button>...</button> tags (case-insensitive, handles newlines)
+    # Updated to be more flexible with whitespace and special characters
+    button_pattern = r'<button[^>]*?>(.*?)</button>'
 
     # Find all button tags
-    button_matches = re.finditer(button_pattern, answer, re.IGNORECASE | re.DOTALL)
+    button_matches = list(re.finditer(button_pattern, answer, re.IGNORECASE | re.DOTALL))
 
     for match in button_matches:
         button_content = match.group(1).strip()
@@ -54,28 +60,37 @@ def parse_buttons_from_answer(answer: str) -> Tuple[str, List[Dict[str, str]]]:
         if bracket_buttons:
             # Multiple buttons in brackets
             for button_text in bracket_buttons:
-                buttons.append({
-                    "type": "button",
-                    "value": button_text.strip()
-                })
-        else:
-            # Format 2: Single button without brackets
-            # Split by common separators if multiple buttons
-            button_texts = re.split(r'\s*[,|]\s*', button_content)
-
-            for button_text in button_texts:
                 button_text = button_text.strip()
                 if button_text:
                     buttons.append({
                         "type": "button",
                         "value": button_text
                     })
+        else:
+            # Format 2: Single button without brackets or pipe-separated
+            # Split by common separators if multiple buttons
+            # Also handle newlines and multiple spaces
+            button_content_clean = re.sub(r'\s+', ' ', button_content)
+            button_texts = re.split(r'\s*[,|]\s*', button_content_clean)
 
-    # Remove all button tags from the answer
-    cleaned_answer = re.sub(button_pattern, '', cleaned_answer, flags=re.IGNORECASE | re.DOTALL)
+            for button_text in button_texts:
+                button_text = button_text.strip()
+                if button_text and not button_text.startswith('<') and not button_text.endswith('>'):
+                    buttons.append({
+                        "type": "button",
+                        "value": button_text
+                    })
 
-    # Clean up any extra whitespace
-    cleaned_answer = re.sub(r'\s+', ' ', cleaned_answer).strip()
+    # Remove all button tags from the answer (including escaped versions)
+    # First handle the escaped version
+    cleaned_answer = re.sub(r'<button[^>]*?>.*?<\\/button>', '', answer, flags=re.IGNORECASE | re.DOTALL)
+    # Then handle the normal version
+    cleaned_answer = re.sub(r'<button[^>]*?>.*?</button>', '', cleaned_answer, flags=re.IGNORECASE | re.DOTALL)
+
+    # Clean up any extra whitespace and newlines
+    cleaned_answer = re.sub(r'\n\s*\n', '\n', cleaned_answer)  # Multiple newlines to single
+    cleaned_answer = re.sub(r'[ \t]+', ' ', cleaned_answer)  # Multiple spaces to single
+    cleaned_answer = cleaned_answer.strip()
 
     return cleaned_answer, buttons
 

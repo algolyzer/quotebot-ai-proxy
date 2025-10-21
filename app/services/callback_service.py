@@ -80,7 +80,6 @@ class CallbackService:
 
         metadata = FinalOutputMetadata(
             traffic_source=traffic_data.get("traffic_source"),
-            landing_page=traffic_data.get("landing_page", "/"),
             conversation_start_page=traffic_data.get("conversation_start_page", "/"),
             device_type=interaction_data.get("device_type", "unknown"),
             initiation_method=interaction_data.get("initiation_method", "unknown"),

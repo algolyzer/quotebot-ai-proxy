@@ -112,7 +112,7 @@ async def seed_test_data():
                 },
                 "traffic_data": {
                     "traffic_source": "direct",
-                    "landing_page": "/test"
+                    "conversation_start_page": "/test"
                 }
             },
             "message_count": 0

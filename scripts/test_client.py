@@ -83,7 +83,7 @@ class QuotebotTestClient:
             },
             "traffic_data": {
                 "traffic_source": "test_script",
-                "landing_page": "/test"
+                "conversation_start_page": "/test"
             }
         }
 

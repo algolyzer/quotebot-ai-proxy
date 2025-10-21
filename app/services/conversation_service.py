@@ -62,7 +62,6 @@ class ConversationService:
 
             # Traffic and source
             "traffic_source": context.traffic_data.traffic_source or "direct",
-            "landing_page": context.traffic_data.landing_page,
             "conversation_start_page": context.traffic_data.conversation_start_page,
 
             # Interaction metadata

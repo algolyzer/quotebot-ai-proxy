@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
 
+    # API Authentication
+    API_KEY: str = ""  # API key for start_conversation endpoint
+
     # Dify Configuration
     DIFY_API_URL: str = "http://quotebot.tablazat.hu/v1"
     DIFY_API_KEY: str

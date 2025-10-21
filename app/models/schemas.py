@@ -199,7 +199,6 @@ class ProductRequest(BaseModel):
 
 class FinalOutputMetadata(BaseModel):
     traffic_source: Optional[str] = None
-    landing_page: str
     conversation_start_page: str
     device_type: str
     initiation_method: str

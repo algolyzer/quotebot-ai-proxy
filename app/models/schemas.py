@@ -71,10 +71,6 @@ class TrafficData(BaseModel):
         None,
         description="Marketing campaign or traffic source identifier"
     )
-    landing_page: str = Field(
-        ...,
-        description="Initial landing page URL"
-    )
     conversation_start_page: str = Field(
         ...,
         description="Page where the conversation was initiated"

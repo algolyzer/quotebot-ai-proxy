@@ -61,6 +61,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       LOG_FORMAT: ${LOG_FORMAT:-json}
       DIFY_API_KEY: ${DIFY_API_KEY:-app-your-dify-api-key-here}
+      API_KEY: ${API_KEY:-api-key-here}
       DIFY_API_URL: ${DIFY_API_URL:-https://quotebot.tablazat.hu/v1}
       DIFY_TIMEOUT: ${DIFY_TIMEOUT:-30}
       TABLAZAT_CALLBACK_URL: ${TABLAZAT_CALLBACK_URL:-https://tablazat.hu/api/quotebot/result}

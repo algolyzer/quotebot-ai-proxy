@@ -44,7 +44,7 @@ async def start_conversation(
     **Flow:**
     1. Receives session info, user data, and traffic source
     2. Creates conversation in Dify
-    3. Returns conversation_id to track the session
+    3. Returns conversation_id and initial AI response to track the session
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -74,9 +74,11 @@ async def start_conversation(
             f"[{request_id}] ✅ Conversation started: {result['conversation_id']}"
         )
 
+        # ⭐ UPDATED: Now includes the answer field
         return StartConversationResponse(
             conversation_id=result["conversation_id"],
-            status="started"
+            status="started",
+            answer=result.get("initial_answer", "")
         )
 
     except Exception as e:

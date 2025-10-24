@@ -129,6 +129,10 @@ class StartConversationResponse(BaseModel):
     conversation_id: str
     status: str = "started"
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    answer: str = Field(
+        ...,
+        description="Initial AI response to start the conversation"
+    )
 
 
 class ChatMessageRequest(BaseModel):
@@ -139,8 +143,6 @@ class ChatMessageRequest(BaseModel):
     )
     message: str = Field(
         ...,
-        min_length=1,
-        max_length=4000,
         description="User's message"
     )
 

@@ -1,7 +1,7 @@
 """
 Callback Service
 Sends final structured data to tablazat.hu with retry logic
-Updated to include new metadata fields
+Updated to include breadcrumbs and category in metadata
 """
 
 import httpx
@@ -77,6 +77,7 @@ class CallbackService:
         traffic_data = initial_context.get("traffic_data", {})
         interaction_data = initial_context.get("interaction_data", {})
         compliance_data = initial_context.get("compliance_data", {})
+        context_data = initial_context.get("context_data", {})  # NEW: Extract context data
 
         metadata = FinalOutputMetadata(
             traffic_source=traffic_data.get("traffic_source"),
@@ -86,7 +87,10 @@ class CallbackService:
             flow_path=structured_data.get("flow_path", "STANDARD"),
             conversation_duration_seconds=duration_seconds,
             total_messages=conversation_data.get("message_count", 0),
-            privacy_policy_accepted=compliance_data.get("privacy_policy_accepted", True)
+            privacy_policy_accepted=compliance_data.get("privacy_policy_accepted", True),
+            # NEW: Include context data in metadata
+            initial_breadcrumbs=context_data.get("breadcrumbs"),
+            initial_category=context_data.get("category")
         )
 
         # Create final output

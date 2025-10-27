@@ -1,6 +1,6 @@
 """
 Pydantic Models for Request/Response validation
-Updated to match new tablazat.hu schema requirements
+Updated to include context_data for breadcrumbs and category
 """
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -52,8 +52,6 @@ class UserData(BaseModel):
     @classmethod
     def validate_identified_user_fields(cls, v, info):
         """Validate that identified users have required fields"""
-        # This will be called for each field, but we need to check after all fields are set
-        # So we'll do a final check in model_post_init
         return v
 
     def model_post_init(self, __context):
@@ -74,6 +72,18 @@ class TrafficData(BaseModel):
     conversation_start_page: str = Field(
         ...,
         description="Page where the conversation was initiated"
+    )
+
+
+class ContextData(BaseModel):
+    """Context data to help AI understand the category at conversation start"""
+    breadcrumbs: str = Field(
+        ...,
+        description="Breadcrumb navigation path (required, can be empty string '')"
+    )
+    category: Optional[str] = Field(
+        None,
+        description="Product category the user is interested in"
     )
 
 
@@ -111,6 +121,7 @@ class InitialContext(BaseModel):
     )
     user_data: UserData
     traffic_data: TrafficData
+    context_data: ContextData  # NEW: Added context data
     interaction_data: InteractionData
     compliance_data: ComplianceData
 
@@ -204,6 +215,9 @@ class FinalOutputMetadata(BaseModel):
     conversation_duration_seconds: Optional[int] = None
     total_messages: Optional[int] = None
     privacy_policy_accepted: bool = True
+    # NEW: Add context metadata to final output
+    initial_breadcrumbs: Optional[str] = None
+    initial_category: Optional[str] = None
 
 
 class FinalOutput(BaseModel):

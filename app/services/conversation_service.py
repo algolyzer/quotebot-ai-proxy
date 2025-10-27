@@ -1,7 +1,7 @@
 """
 Conversation Service
 Manages conversation lifecycle and coordinates between Redis, PostgreSQL, and Dify
-Updated to handle new schema fields
+Updated to handle context_data (breadcrumbs and category)
 """
 
 import uuid
@@ -31,7 +31,7 @@ class ConversationService:
         Start a new conversation
 
         1. Generate conversation ID
-        2. Create conversation in Dify with full context
+        2. Create conversation in Dify with full context (including breadcrumbs/category)
         3. Store in Redis (fast access)
         4. Store in PostgreSQL (persistence)
 
@@ -64,6 +64,10 @@ class ConversationService:
             "traffic_source": context.traffic_data.traffic_source or "direct",
             "conversation_start_page": context.traffic_data.conversation_start_page,
 
+            # NEW: Context data (breadcrumbs and category)
+            "breadcrumbs": context.context_data.breadcrumbs,
+            "category": context.context_data.category or "",
+
             # Interaction metadata
             "device_type": context.interaction_data.device_type,
             "initiation_method": context.interaction_data.initiation_method,
@@ -88,7 +92,17 @@ class ConversationService:
         if context.traffic_data.traffic_source:
             first_message_parts.append(f"Source: {context.traffic_data.traffic_source}")
 
+        # NEW: Include breadcrumbs and category in first message
+        if context.context_data.breadcrumbs:
+            first_message_parts.append(f"Navigation: {context.context_data.breadcrumbs}")
+
+        if context.context_data.category:
+            first_message_parts.append(f"Category: {context.context_data.category}")
+
         first_message = "\n".join(first_message_parts)
+
+        logger.info(
+            f"Context data - Breadcrumbs: '{context.context_data.breadcrumbs}', Category: '{context.context_data.category}'")
 
         # Create conversation in Dify
         try:
@@ -214,7 +228,6 @@ class ConversationService:
         answer = dify_response.get("answer", "")
 
         # Parse buttons from answer
-
         cleaned_answer, buttons = parse_buttons_from_answer(answer)
 
         # Save the original answer (with buttons) to database for history

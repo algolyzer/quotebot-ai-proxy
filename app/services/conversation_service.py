@@ -1,16 +1,16 @@
 """
-Conversation Service
-Manages conversation lifecycle and coordinates between Redis, PostgreSQL, and Dify
-Updated to handle context_data (breadcrumbs and category)
+Conversation Service - SIMPLIFIED
+Just passes raw context to Dify without complex parsing
 """
 
 import uuid
+import json
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
 from app.models.schemas import (
-    InitialContext, ConversationStatus, MessageRole,
-    ConversationRecord, MessageRecord
+    ConversationStatus, MessageRole,
+    ConversationRecord, MessageRecord, StartConversationRequest
 )
 from app.services.database import redis_client, db_service
 from app.services.dify_service import dify_service
@@ -25,18 +25,16 @@ class ConversationService:
 
     async def start_conversation(
             self,
-            context: InitialContext
+            request: StartConversationRequest
     ) -> Dict[str, Any]:
         """
-        Start a new conversation
+        Start a new conversation - SIMPLIFIED VERSION
 
-        1. Generate conversation ID
-        2. Create conversation in Dify with full context (including breadcrumbs/category)
-        3. Store in Redis (fast access)
-        4. Store in PostgreSQL (persistence)
+        Just takes the raw context and sends it to Dify as-is.
+        No complex validation or parsing.
 
         Args:
-            context: Initial context from tablazat.hu
+            request: Simple request with session_id and context dict
 
         Returns:
             Dict with conversation_id and initial AI response
@@ -46,70 +44,19 @@ class ConversationService:
 
         logger.info(
             f"Starting conversation {conversation_id} "
-            f"for session {context.session_id}"
+            f"for session {request.session_id}"
         )
 
-        # Prepare comprehensive inputs for Dify
-        dify_inputs = {
-            # Date context
-            "current_date": context.current_date,
+        # Convert the entire context to a JSON string for Dify
+        context_string = json.dumps(request.context, ensure_ascii=False, indent=2)
 
-            # User information
-            "is_identified_user": context.user_data.is_identified_user,
-            "user_name": context.user_data.name or "Guest",
-            "user_id": context.user_data.user_id if context.user_data.user_id is not None else "",
-            "user_email": context.user_data.email or "",
+        logger.info(f"Context being sent to Dify:\n{context_string}")
 
-            # Traffic and source
-            "traffic_source": context.traffic_data.traffic_source or "direct",
-            "conversation_start_page": context.traffic_data.conversation_start_page,
-
-            # NEW: Context data (breadcrumbs and category)
-            "breadcrumbs": context.context_data.breadcrumbs,
-            "category": context.context_data.category or "",
-
-            # Interaction metadata
-            "device_type": context.interaction_data.device_type,
-            "initiation_method": context.interaction_data.initiation_method,
-
-            # Compliance
-            "privacy_accepted": context.compliance_data.privacy_policy_accepted,
-        }
-
-        # Create a natural first message that includes context
-        first_message_parts = [
-            f"Date: {context.current_date}",
-        ]
-
-        if context.user_data.is_identified_user and context.user_data.name:
-            first_message_parts.append(f"User: {context.user_data.name}")
-
-        first_message_parts.extend([
-            f"Device: {context.interaction_data.device_type}",
-            f"Started from: {context.traffic_data.conversation_start_page}",
-        ])
-
-        if context.traffic_data.traffic_source:
-            first_message_parts.append(f"Source: {context.traffic_data.traffic_source}")
-
-        # NEW: Include breadcrumbs and category in first message
-        if context.context_data.breadcrumbs:
-            first_message_parts.append(f"Navigation: {context.context_data.breadcrumbs}")
-
-        if context.context_data.category:
-            first_message_parts.append(f"Category: {context.context_data.category}")
-
-        first_message = "\n".join(first_message_parts)
-
-        logger.info(
-            f"Context data - Breadcrumbs: '{context.context_data.breadcrumbs}', Category: '{context.context_data.category}'")
-
-        # Create conversation in Dify
+        # Create conversation in Dify with the raw context as a string
         try:
             dify_response = await dify_service.create_conversation(
-                user_id=context.session_id,
-                initial_inputs=dify_inputs,
-                first_message=first_message
+                user_id=request.session_id,
+                context_string=context_string
             )
         except Exception as e:
             logger.error(f"Failed to create Dify conversation: {e}")
@@ -121,10 +68,10 @@ class ConversationService:
         # Prepare conversation record
         conversation_data = {
             "conversation_id": conversation_id,
-            "session_id": context.session_id,
+            "session_id": request.session_id,
             "dify_conversation_id": dify_conversation_id,
             "status": ConversationStatus.ACTIVE.value,
-            "initial_context": context.dict(),
+            "initial_context": request.context,  # Store raw context
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
             "message_count": 1

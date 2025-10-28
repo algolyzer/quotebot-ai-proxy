@@ -1,9 +1,4 @@
-"""
-Pydantic Models for Request/Response validation
-Updated to include context_data for breadcrumbs and category
-"""
-
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field
 from typing import Optional, Dict, List, Any
 from datetime import datetime
 from enum import Enum
@@ -26,114 +21,57 @@ class MessageRole(str, Enum):
 
 
 # ============================================================================
-# INITIAL CONTEXT (FROM TABLAZAT.HU) - UPDATED SCHEMA
+# INITIAL CONTEXT (FROM TABLAZAT.HU) - SIMPLIFIED
 # ============================================================================
 
-class UserData(BaseModel):
-    """User information from tablazat.hu"""
-    is_identified_user: bool = Field(
-        ...,
-        description="Whether the user is identified/logged in"
-    )
-    name: Optional[str] = Field(
-        None,
-        description="User's name (required when is_identified_user=true)"
-    )
-    user_id: Optional[int] = Field(
-        None,
-        description="User's ID in tablazat.hu system (required when is_identified_user=true)"
-    )
-    email: Optional[EmailStr] = Field(
-        None,
-        description="User's email address"
-    )
-
-    @field_validator('name', 'user_id')
-    @classmethod
-    def validate_identified_user_fields(cls, v, info):
-        """Validate that identified users have required fields"""
-        return v
-
-    def model_post_init(self, __context):
-        """Validate conditional requirements after model initialization"""
-        if self.is_identified_user:
-            if not self.name:
-                raise ValueError("user_data.name is required when is_identified_user=true")
-            if self.user_id is None:
-                raise ValueError("user_data.user_id is required when is_identified_user=true")
-
-
-class TrafficData(BaseModel):
-    """Traffic and source information"""
-    traffic_source: Optional[str] = Field(
-        None,
-        description="Marketing campaign or traffic source identifier"
-    )
-    conversation_start_page: str = Field(
-        ...,
-        description="Page where the conversation was initiated"
-    )
-
-
-class ContextData(BaseModel):
-    """Context data to help AI understand the category at conversation start"""
-    breadcrumbs: str = Field(
-        ...,
-        description="Breadcrumb navigation path (required, can be empty string '')"
-    )
-    category: Optional[str] = Field(
-        None,
-        description="Product category the user is interested in"
-    )
-
-
-class InteractionData(BaseModel):
-    """User interaction metadata"""
-    device_type: str = Field(
-        ...,
-        description="Device type: desktop, mobile, tablet",
-        pattern="^(desktop|mobile|tablet)$"
-    )
-    initiation_method: str = Field(
-        ...,
-        description="How conversation started: user_clicked, auto_popup, chat_icon, etc."
-    )
-
-
-class ComplianceData(BaseModel):
-    """Compliance and privacy information"""
-    privacy_policy_accepted: bool = Field(
-        ...,
-        description="Whether user has accepted the privacy policy"
-    )
-
-
-class InitialContext(BaseModel):
-    """Complete initial context from tablazat.hu"""
-    current_date: str = Field(
-        ...,
-        description="Current date in YYYY-MM-DD format",
-        pattern=r"^\d{4}-\d{2}-\d{2}$"
-    )
+class StartConversationRequest(BaseModel):
+    """
+    Simplified request to start a new conversation
+    Accepts raw JSON and forwards it to Dify as-is
+    """
     session_id: str = Field(
         ...,
-        description="Unique session ID from tablazat.hu"
+        description="Unique session ID from tablazat.hu (Required)"
     )
-    user_data: UserData
-    traffic_data: TrafficData
-    context_data: ContextData  # NEW: Added context data
-    interaction_data: InteractionData
-    compliance_data: ComplianceData
+    context: Dict[str, Any] = Field(
+        ...,
+        description="Complete context data to send to Dify (all other fields)"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "session_id": "xyz-abc-123",
+                "context": {
+                    "current_date": "2025-10-20",
+                    "user_data": {
+                        "is_identified_user": False,
+                        "name": "Teszt Elek",
+                        "user_id": 1485
+                    },
+                    "traffic_data": {
+                        "traffic_source": "google_ads_targonca_kampany",
+                        "conversation_start_page": "/targonca"
+                    },
+                    "context_data": {
+                        "breadcrumbs": "Targonca > Elektromos targonca",
+                        "category": "Elektromos targonca"
+                    },
+                    "interaction_data": {
+                        "device_type": "desktop",
+                        "initiation_method": "user_clicked"
+                    },
+                    "compliance_data": {
+                        "privacy_policy_accepted": True
+                    }
+                }
+            }
+        }
 
 
 # ============================================================================
 # CONVERSATION ENDPOINTS
 # ============================================================================
-
-class StartConversationRequest(InitialContext):
-    """Request to start a new conversation"""
-    pass
-
 
 class StartConversationResponse(BaseModel):
     """Response after starting a conversation"""
@@ -215,7 +153,6 @@ class FinalOutputMetadata(BaseModel):
     conversation_duration_seconds: Optional[int] = None
     total_messages: Optional[int] = None
     privacy_policy_accepted: bool = True
-    # NEW: Add context metadata to final output
     initial_breadcrumbs: Optional[str] = None
     initial_category: Optional[str] = None
 
@@ -264,7 +201,7 @@ class ConversationRecord(BaseModel):
     conversation_id: str
     session_id: str
     dify_conversation_id: Optional[str] = None
-    initial_context: InitialContext
+    initial_context: Dict[str, Any]  # Simplified - just store raw context
     status: ConversationStatus = ConversationStatus.ACTIVE
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

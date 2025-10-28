@@ -1,6 +1,6 @@
 """
-Conversation API Endpoints
-Clean, RESTful endpoint design
+Conversation API Endpoints - SIMPLIFIED
+Minimal validation, pass raw JSON to Dify
 """
 
 from fastapi import APIRouter, HTTPException, Request, status, Depends
@@ -26,25 +26,53 @@ router = APIRouter()
     "/start_conversation",
     response_model=StartConversationResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Start a new conversation",
-    description="Initialize a conversation with context from tablazat.hu"
+    summary="Start a new conversation (SIMPLIFIED)",
+    description="Initialize a conversation - sends raw context to Dify as-is"
 )
 async def start_conversation(
         request: Request,
         context: StartConversationRequest,
         api_key: str = Depends(verify_api_key)
-
 ):
     """
-    **Start a new conversation**
+    **Start a new conversation - SIMPLIFIED**
 
-    This is the "handshake" endpoint that receives initial context
-    from tablazat.hu and creates a new Dify conversation.
+    This endpoint accepts a simple structure:
+    - session_id: Required
+    - context: All other data as a raw JSON object
 
-    **Flow:**
-    1. Receives session info, user data, and traffic source
-    2. Creates conversation in Dify
-    3. Returns conversation_id and initial AI response to track the session
+    The entire context is sent to Dify as a JSON string in the first message.
+    No complex validation - Dify handles the context directly.
+
+    **Example Request:**
+    ```json
+    {
+      "session_id": "xyz-abc-123",
+      "context": {
+        "current_date": "2025-10-20",
+        "user_data": {
+          "is_identified_user": false,
+          "name": "Teszt Elek",
+          "user_id": 1485
+        },
+        "traffic_data": {
+          "traffic_source": "google_ads",
+          "conversation_start_page": "/targonca"
+        },
+        "context_data": {
+          "breadcrumbs": "Targonca > Elektromos targonca",
+          "category": "Elektromos targonca"
+        },
+        "interaction_data": {
+          "device_type": "desktop",
+          "initiation_method": "user_clicked"
+        },
+        "compliance_data": {
+          "privacy_policy_accepted": true
+        }
+      }
+    }
+    ```
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -74,7 +102,6 @@ async def start_conversation(
             f"[{request_id}] ✅ Conversation started: {result['conversation_id']}"
         )
 
-        # ⭐ UPDATED: Now includes the answer field
         return StartConversationResponse(
             conversation_id=result["conversation_id"],
             status="started",
@@ -102,7 +129,6 @@ async def send_message(
         request: Request,
         chat_msg: ChatMessageRequest,
         api_key: str = Depends(verify_api_key)
-
 ):
     """
     **Send a message in an active conversation**
@@ -177,7 +203,6 @@ async def get_history(
         request: Request,
         conversation_id: str,
         api_key: str = Depends(verify_api_key)
-
 ):
     """
     **Get conversation history**
@@ -232,7 +257,6 @@ async def get_conversation_status(
         request: Request,
         conversation_id: str,
         api_key: str = Depends(verify_api_key)
-
 ):
     """
     **Get conversation status** (Debug endpoint)

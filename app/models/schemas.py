@@ -26,44 +26,42 @@ class MessageRole(str, Enum):
 
 class StartConversationRequest(BaseModel):
     """
-    Simplified request to start a new conversation
-    Accepts raw JSON and forwards it to Dify as-is
+    Request to start a new conversation
+    Matches the documentation schema (no 'context' wrapper)
     """
-    session_id: str = Field(
-        ...,
-        description="Unique session ID from tablazat.hu (Required)"
-    )
-    context: Dict[str, Any] = Field(
-        ...,
-        description="Complete context data to send to Dify (all other fields)"
-    )
+    current_date: str = Field(..., description="Current date (Required)")
+    session_id: str = Field(..., description="Unique session ID (Required)")
+
+    user_data: Dict[str, Any] = Field(..., description="User data section")
+    traffic_data: Dict[str, Any] = Field(..., description="Traffic data section")
+    context_data: Dict[str, Any] = Field(..., description="Context data section")
+    interaction_data: Dict[str, Any] = Field(..., description="Interaction data section")
+    compliance_data: Dict[str, Any] = Field(..., description="Compliance data section")
 
     class Config:
         json_schema_extra = {
             "example": {
+                "current_date": "2025-10-20",
                 "session_id": "xyz-abc-123",
-                "context": {
-                    "current_date": "2025-10-20",
-                    "user_data": {
-                        "is_identified_user": False,
-                        "name": "Teszt Elek",
-                        "user_id": 1485
-                    },
-                    "traffic_data": {
-                        "traffic_source": "google_ads_targonca_kampany",
-                        "conversation_start_page": "/targonca"
-                    },
-                    "context_data": {
-                        "breadcrumbs": "Targonca > Elektromos targonca",
-                        "category": "Elektromos targonca"
-                    },
-                    "interaction_data": {
-                        "device_type": "desktop",
-                        "initiation_method": "user_clicked"
-                    },
-                    "compliance_data": {
-                        "privacy_policy_accepted": True
-                    }
+                "user_data": {
+                    "is_identified_user": False,
+                    "name": "Teszt Elek",
+                    "user_id": 1485
+                },
+                "traffic_data": {
+                    "traffic_source": "google_ads_targonca_kampany",
+                    "conversation_start_page": "/targonca"
+                },
+                "context_data": {
+                    "breadcrumbs": "Targonca > Elektromos targonca",
+                    "category": "Elektromos targonca"
+                },
+                "interaction_data": {
+                    "device_type": "desktop",
+                    "initiation_method": "user_clicked"
+                },
+                "compliance_data": {
+                    "privacy_policy_accepted": True
                 }
             }
         }

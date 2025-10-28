@@ -46,9 +46,18 @@ class ConversationService:
             f"Starting conversation {conversation_id} "
             f"for session {request.session_id}"
         )
+        context_dict = {
+            "current_date": request.current_date,
+            "session_id": request.session_id,
+            "user_data": request.user_data,
+            "traffic_data": request.traffic_data,
+            "context_data": request.context_data,
+            "interaction_data": request.interaction_data,
+            "compliance_data": request.compliance_data,
+        }
 
         # Convert the entire context to a JSON string for Dify
-        context_string = json.dumps(request.context, ensure_ascii=False, indent=2)
+        context_string = json.dumps(context_dict, ensure_ascii=False, indent=2)
 
         logger.info(f"Context being sent to Dify:\n{context_string}")
 
@@ -71,7 +80,7 @@ class ConversationService:
             "session_id": request.session_id,
             "dify_conversation_id": dify_conversation_id,
             "status": ConversationStatus.ACTIVE.value,
-            "initial_context": request.context,  # Store raw context
+            "initial_context": context_dict,  # Store raw context
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
             "message_count": 1

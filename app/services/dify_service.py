@@ -1,6 +1,6 @@
 """
-Dify API Service
-Handles all communication with the Dify platform
+Dify API Service - SIMPLIFIED
+Sends raw context as string to Dify
 """
 
 import httpx
@@ -40,28 +40,30 @@ class DifyService:
     async def create_conversation(
             self,
             user_id: str,
-            initial_inputs: Dict[str, Any],
-            first_message: str = "Hello, I'm interested in your products"
+            context_string: str
     ) -> Dict[str, Any]:
         """
-        Create a new conversation in Dify
+        Create a new conversation in Dify - SIMPLIFIED VERSION
+
+        Just sends the raw context as a string in the query.
+        Dify will see the entire context in the first message.
 
         Args:
             user_id: Session ID from tablazat.hu
-            initial_inputs: Context data to pass to AI
-            first_message: Initial message to start conversation
+            context_string: The entire context as a formatted string
 
         Returns:
             Dify response with conversation_id and first AI response
         """
         payload = {
-            "inputs": initial_inputs,
-            "query": first_message,
+            "inputs": {},  # Empty inputs
+            "query": context_string,  # Send entire context as the first message
             "response_mode": "blocking",
             "user": user_id
         }
 
         logger.info(f"Creating Dify conversation for user {user_id}")
+        logger.debug(f"Sending context:\n{context_string[:200]}...")
 
         try:
             response = await self.client.post(

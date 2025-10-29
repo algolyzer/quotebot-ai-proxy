@@ -110,6 +110,10 @@ class MessageHistory(BaseModel):
     role: MessageRole
     content: str
     timestamp: Optional[datetime] = None
+    buttons: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="Parsed buttons from AI response (only for assistant messages)"
+    )
 
 
 class ConversationHistoryResponse(BaseModel):
@@ -199,7 +203,7 @@ class ConversationRecord(BaseModel):
     conversation_id: str
     session_id: str
     dify_conversation_id: Optional[str] = None
-    initial_context: Dict[str, Any]  # Simplified - just store raw context
+    initial_context: Dict[str, Any]
     status: ConversationStatus = ConversationStatus.ACTIVE
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

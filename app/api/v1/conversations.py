@@ -15,6 +15,7 @@ from app.services.conversation_service import conversation_service
 from app.services.database import redis_client
 from app.config import settings
 from app.utils.logger import setup_logger
+from app.utils.response_parser import parse_buttons_from_answer
 from app.api.dependencies import verify_api_key
 
 logger = setup_logger(__name__)
@@ -45,7 +46,7 @@ async def start_conversation(
     No complex validation - Dify handles the context directly.
 
     **Example Request:**
-    ```json
+```json
     {
       "session_id": "xyz-abc-123",
       "context": {
@@ -72,7 +73,7 @@ async def start_conversation(
         }
       }
     }
-    ```
+```
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -222,14 +223,25 @@ async def get_history(
     try:
         messages = await conversation_service.get_history(conversation_id)
 
-        history = [
-            MessageHistory(
-                role=msg["role"],
-                content=msg["content"],
-                timestamp=msg.get("timestamp")
+        history = []
+        for msg in messages:
+            role = msg["role"]
+            content = msg["content"]
+            buttons = []
+
+            # Parse buttons from assistant messages
+            if role == "assistant":
+                cleaned_content, buttons = parse_buttons_from_answer(content)
+                content = cleaned_content
+
+            history.append(
+                MessageHistory(
+                    role=role,
+                    content=content,
+                    timestamp=msg.get("timestamp"),
+                    buttons=buttons
+                )
             )
-            for msg in messages
-        ]
 
         logger.debug(
             f"[{request_id}] ✅ Retrieved {len(history)} messages"

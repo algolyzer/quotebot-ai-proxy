@@ -140,9 +140,8 @@ async def send_message(
     **Flow:**
     1. Receives user message with conversation_id
     2. Forwards to Dify AI
-    3. Returns AI response
+    3. Returns AI response with buttons and stage
     4. Checks if conversation is complete
-    5. If complete, triggers callback to tablazat.hu
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -171,6 +170,7 @@ async def send_message(
         return ChatMessageResponse(
             answer=result["answer"],
             buttons=result["buttons"],
+            stage=result.get("stage", ""),  # Return stage (empty string if not found)
             conversation_complete=result["conversation_complete"]
         )
 

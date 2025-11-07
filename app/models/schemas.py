@@ -102,6 +102,10 @@ class ChatMessageResponse(BaseModel):
         default_factory=list,
         description="Parsed buttons from AI response"
     )
+    stage: str = Field(
+        default="",
+        description="Current conversation stage (empty string if not specified)"
+    )
     metadata: Optional[Dict[str, Any]] = None
 
 

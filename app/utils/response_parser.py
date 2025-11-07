@@ -1,11 +1,58 @@
 """
 Response Parser Utilities
-Extracts structured elements (buttons, links, etc.) from AI responses
-Fixed to handle escaped slashes and various button formats
+Extracts structured elements (buttons, stage, links, etc.) from AI responses
 """
 
 import re
 from typing import Dict, List, Any, Tuple
+
+
+def parse_stage_from_answer(answer: str) -> Tuple[str, str]:
+    """
+    Parse stage tag from AI answer
+
+    Extracts <stage>value</stage> from the answer and returns cleaned text.
+
+    Args:
+        answer: The AI's response text
+
+    Returns:
+        Tuple of (cleaned_answer, stage_value)
+        - cleaned_answer: Answer with stage tags removed
+        - stage_value: The stage value or empty string if not found
+
+    Examples:
+        >>> parse_stage_from_answer("Hello <stage>company</stage> world")
+        ("Hello  world", "company")
+
+        >>> parse_stage_from_answer("Hello world")
+        ("Hello world", "")
+    """
+    stage_value = ""
+    cleaned_answer = answer
+
+    # Handle escaped slashes first
+    answer = answer.replace(r'<\/stage>', '</stage>')
+
+    # Pattern to match <stage>...</stage> tags (case-insensitive, handles newlines)
+    stage_pattern = r'<stage[^>]*?>(.*?)</stage>'
+
+    # Find stage tag
+    stage_match = re.search(stage_pattern, answer, re.IGNORECASE | re.DOTALL)
+
+    if stage_match:
+        stage_value = stage_match.group(1).strip()
+
+    # Remove all stage tags from the answer
+    cleaned_answer = re.sub(r'<stage[^>]*?>.*?<\\/stage>', '', answer, flags=re.IGNORECASE | re.DOTALL)
+    cleaned_answer = re.sub(r'<stage[^>]*?>.*?</stage>', '', cleaned_answer, flags=re.IGNORECASE | re.DOTALL)
+
+    # Clean up whitespace
+    cleaned_answer = re.sub(r'\n\s*\n', '\n', cleaned_answer)
+    cleaned_answer = re.sub(r'[ \t]+', ' ', cleaned_answer)
+    cleaned_answer = cleaned_answer.strip()
+
+    return cleaned_answer, stage_value
 
 
 def parse_buttons_from_answer(answer: str) -> Tuple[str, List[Dict[str, str]]]:
@@ -120,11 +167,15 @@ def parse_structured_elements(answer: str) -> Dict[str, Any]:
         Dict with:
         - cleaned_answer: Text with structured elements removed
         - buttons: List of button objects
+        - stage: Stage value (empty string if not found)
         - links: List of link objects (future)
         - other structured elements...
     """
+    # Parse stage first
+    cleaned_answer, stage = parse_stage_from_answer(answer)
+
     # Parse buttons
-    cleaned_answer, buttons = parse_buttons_from_answer(answer)
+    cleaned_answer, buttons = parse_buttons_from_answer(cleaned_answer)
 
     # Parse links (future enhancement)
     cleaned_answer, links = parse_links_from_answer(cleaned_answer)
@@ -132,6 +183,7 @@ def parse_structured_elements(answer: str) -> Dict[str, Any]:
     return {
         "answer": cleaned_answer,
         "buttons": buttons,
+        "stage": stage,
         "links": links,
     }
 

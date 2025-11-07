@@ -15,7 +15,7 @@ from app.models.schemas import (
 from app.services.database import redis_client, db_service
 from app.services.dify_service import dify_service
 from app.utils.logger import setup_logger
-from app.utils.response_parser import parse_buttons_from_answer
+from app.utils.response_parser import parse_buttons_from_answer, parse_stage_from_answer
 
 logger = setup_logger(__name__)
 
@@ -132,14 +132,14 @@ class ConversationService:
         2. Send message to Dify
         3. Check if conversation is complete
         4. Update storage
-        5. Trigger callback if complete
+        5. Parse buttons and stage from response
 
         Args:
             conversation_id: Conversation ID
             message: User's message
 
         Returns:
-            Dict with AI answer and completion status
+            Dict with AI answer, buttons, stage, and completion status
         """
         # Get conversation from Redis
         conversation = await redis_client.get_conversation(conversation_id)
@@ -183,14 +183,17 @@ class ConversationService:
 
         answer = dify_response.get("answer", "")
 
-        # Parse buttons from answer
-        cleaned_answer, buttons = parse_buttons_from_answer(answer)
+        # Parse stage from answer first
+        cleaned_answer_stage, stage = parse_stage_from_answer(answer)
 
-        # Save the original answer (with buttons) to database for history
+        # Then parse buttons from the cleaned answer
+        cleaned_answer, buttons = parse_buttons_from_answer(cleaned_answer_stage)
+
+        # Save the original answer (with buttons and stage) to database for history
         await self._save_message(
             conversation_id=conversation_id,
             role=MessageRole.ASSISTANT,
-            content=answer,  # Store original with buttons
+            content=answer,  # Store original with buttons and stage
             dify_message_id=dify_response.get("message_id")
         )
 
@@ -212,29 +215,36 @@ class ConversationService:
             variables
         )
 
-        # Build result with parsed buttons
+        # Build result with parsed buttons and stage
         result = {
-            "answer": cleaned_answer,  # Return cleaned answer without button tags
+            "answer": cleaned_answer,  # Return cleaned answer without button/stage tags
             "conversation_complete": is_complete,
-            "buttons": buttons  # Return parsed buttons array
+            "buttons": buttons,  # Return parsed buttons array
+            "stage": stage  # Return parsed stage (empty string if not found)
         }
 
-        # If complete, trigger finalization
+        # If complete, just mark as complete - no callback needed
         if is_complete:
             logger.info(f"Conversation {conversation_id} is complete")
 
-            # Import here to avoid circular dependency
-            from app.services.callback_service import callback_service
-
-            # Trigger callback in background
-            import asyncio
-            asyncio.create_task(
-                self._finalize_conversation(
-                    conversation_id,
-                    dify_response,
-                    variables
-                )
+            await redis_client.update_conversation(
+                conversation_id,
+                {
+                    "status": ConversationStatus.COMPLETED.value,
+                    "completed_at": datetime.utcnow().isoformat()
+                }
             )
+
+            try:
+                await db_service.update_conversation(
+                    conversation_id,
+                    {
+                        "status": ConversationStatus.COMPLETED.value,
+                        "completed_at": datetime.utcnow()
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to update conversation status in database: {e}")
 
         return result
 
@@ -301,72 +311,6 @@ class ConversationService:
             })
         except Exception as e:
             logger.error(f"Failed to save message to database: {e}")
-
-    async def _finalize_conversation(
-            self,
-            conversation_id: str,
-            dify_response: Dict[str, Any],
-            variables: Dict[str, Any]
-    ):
-        """
-        Finalize conversation and send callback to tablazat.hu
-
-        1. Extract structured data
-        2. Update conversation status
-        3. Send callback to tablazat.hu
-        """
-        logger.info(f"Finalizing conversation {conversation_id}")
-
-        # Get conversation data
-        conversation = await redis_client.get_conversation(conversation_id)
-
-        if not conversation:
-            logger.error(f"Cannot finalize - conversation {conversation_id} not found")
-            return
-
-        # Extract structured data from variables
-        structured_data = dify_service.extract_structured_data(
-            dify_response,
-            variables
-        )
-
-        # Build final output
-        from app.services.callback_service import callback_service
-
-        try:
-            await callback_service.send_final_output(
-                conversation_id=conversation_id,
-                conversation_data=conversation,
-                structured_data=structured_data or {}
-            )
-
-            # Update status
-            await redis_client.update_conversation(
-                conversation_id,
-                {
-                    "status": ConversationStatus.COMPLETED.value,
-                    "completed_at": datetime.utcnow().isoformat()
-                }
-            )
-
-            await db_service.update_conversation(
-                conversation_id,
-                {
-                    "status": ConversationStatus.COMPLETED.value,
-                    "completed_at": datetime.utcnow()
-                }
-            )
-
-            logger.info(f"Conversation {conversation_id} finalized successfully")
-
-        except Exception as e:
-            logger.error(f"Failed to finalize conversation {conversation_id}: {e}")
-
-            # Mark as failed
-            await redis_client.update_conversation(
-                conversation_id,
-                {"status": ConversationStatus.FAILED.value}
-            )
 
 
 # Create singleton instance

@@ -118,6 +118,10 @@ class MessageHistory(BaseModel):
         default_factory=list,
         description="Parsed buttons from AI response (only for assistant messages)"
     )
+    stage: str = Field(
+        default="",
+        description="Current conversation stage (only for assistant messages, empty string if not specified)"
+    )
 
 
 class ConversationHistoryResponse(BaseModel):

@@ -15,7 +15,7 @@ from app.services.conversation_service import conversation_service
 from app.services.database import redis_client
 from app.config import settings
 from app.utils.logger import setup_logger
-from app.utils.response_parser import parse_buttons_from_answer
+from app.utils.response_parser import parse_buttons_from_answer, parse_stage_from_answer
 from app.api.dependencies import verify_api_key
 
 logger = setup_logger(__name__)
@@ -212,7 +212,7 @@ async def get_history(
     a user refreshes the page to restore the conversation state.
 
     **Response:**
-    Array of messages with role (user/assistant) and content
+    Array of messages with role (user/assistant), content, buttons, and stage
     """
     request_id = getattr(request.state, "request_id", "unknown")
 
@@ -228,10 +228,14 @@ async def get_history(
             role = msg["role"]
             content = msg["content"]
             buttons = []
+            stage = ""
 
-            # Parse buttons from assistant messages
+            # Parse stage and buttons from assistant messages
             if role == "assistant":
-                cleaned_content, buttons = parse_buttons_from_answer(content)
+                # First parse stage
+                cleaned_content, stage = parse_stage_from_answer(content)
+                # Then parse buttons from the cleaned content
+                cleaned_content, buttons = parse_buttons_from_answer(cleaned_content)
                 content = cleaned_content
 
             history.append(
@@ -239,7 +243,8 @@ async def get_history(
                     role=role,
                     content=content,
                     timestamp=msg.get("timestamp"),
-                    buttons=buttons
+                    buttons=buttons,
+                    stage=stage
                 )
             )
 
